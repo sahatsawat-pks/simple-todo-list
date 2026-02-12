@@ -61,7 +61,7 @@ async function toggleTodo(id) {
         const response = await fetch(`${API_BASE}/${id}`, {
             method: 'PUT',
         });
-        
+        console.log(response)
         if (response.ok) {
             const updatedTodo = await response.json();
             const index = todos.findIndex(t => t.id === id);

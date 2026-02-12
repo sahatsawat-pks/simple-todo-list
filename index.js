@@ -83,7 +83,17 @@ app.put('/api/todos/:id', (req, res) => {
     return res.status(404).json({ error: 'Todo not found' });
   }
   
-  todos[todoIndex].completed = true;
+  if(todos[todoIndex].completed) {
+    todos[todoIndex].completed = false;
+  } else {
+    todos[todoIndex].completed = true;
+  }
+
+  if (writeTodos(todos)) {
+    res.status(200).json(todos[todoIndex]);
+  } else {
+    res.status(500).json({ error: 'Failed to update todo' });
+  }
 });
 
 // Delete a todo
