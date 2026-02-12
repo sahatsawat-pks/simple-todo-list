@@ -8,8 +8,10 @@
 </head>
 <body>
     <div class="container">
-        <h1>📝 Sahatsawat's Todo List</h1>
-        <h2>No more short-term memory, Use this!</h2>
+        <div class="header">
+            <h1>📝 Sahatsawat's Todo List</h1>
+            <h2>No more short-term memory, Use this!</h2>
+        </div>
         
         <div class="input-container">
             <input type="text" id="todoInput" placeholder="Add a new todo..." />
@@ -18,9 +20,24 @@
         
         <div id="todoList" class="todo-list"></div>
         
+        <div class="bulk-actions">
+            <button id="completeAllBtn" class="bulk-btn complete-all-btn">
+                <span class="btn-icon">✓</span> Complete All
+            </button>
+            <button id="uncompleteAllBtn" class="bulk-btn uncomplete-all-btn">
+                <span class="btn-icon">↺</span> Uncomplete All
+            </button>
+        </div>
+        
         <div class="stats">
-            <span id="totalCount">Total: 0</span>
-            <span id="completedCount">Completed: 0</span>
+            <div class="stat-item">
+                <span class="stat-label">Total:</span>
+                <span id="totalCount" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Completed:</span>
+                <span id="completedCount" class="stat-value">0</span>
+            </div>
         </div>
     </div>
     

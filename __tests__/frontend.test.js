@@ -99,11 +99,11 @@ describe('Frontend Todo Application', () => {
 
       const total = todos.length;
       const completed = todos.filter(t => t.completed).length;
-      totalCount.textContent = `Total: ${total}`;
-      completedCount.textContent = `Completed: ${completed}`;
+      totalCount.textContent = total;
+      completedCount.textContent = completed;
 
-      expect(totalCount.textContent).toBe('Total: 3');
-      expect(completedCount.textContent).toBe('Completed: 2');
+      expect(totalCount.textContent).toBe('3');
+      expect(completedCount.textContent).toBe('2');
     });
 
     test('should show zero stats for empty list', () => {
@@ -111,11 +111,11 @@ describe('Frontend Todo Application', () => {
       
       const total = todos.length;
       const completed = todos.filter(t => t.completed).length;
-      totalCount.textContent = `Total: ${total}`;
-      completedCount.textContent = `Completed: ${completed}`;
+      totalCount.textContent = total;
+      completedCount.textContent = completed;
 
-      expect(totalCount.textContent).toBe('Total: 0');
-      expect(completedCount.textContent).toBe('Completed: 0');
+      expect(totalCount.textContent).toBe('0');
+      expect(completedCount.textContent).toBe('0');
     });
   });
 
@@ -283,6 +283,238 @@ describe('Frontend Todo Application', () => {
       }
 
       expect(alert).toHaveBeenCalledWith('Failed to delete todo');
+    });
+  });
+
+  describe('editTodo function', () => {
+    // Mock prompt
+    beforeEach(() => {
+      global.prompt = jest.fn();
+    });
+
+    afterEach(() => {
+      delete global.prompt;
+    });
+
+    test('should edit a todo successfully', async () => {
+      const updatedTodo = { id: 1, text: 'Updated text', completed: false };
+      
+      global.prompt.mockReturnValue('Updated text');
+      
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => updatedTodo
+      });
+
+      const response = await fetch('/api/todos/1', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: 'Updated text' }),
+      });
+
+      expect(response.ok).toBe(true);
+      const result = await response.json();
+      expect(result.text).toBe('Updated text');
+      expect(fetch).toHaveBeenCalledWith('/api/todos/1', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: 'Updated text' }),
+      });
+    });
+
+    test('should handle edit error', async () => {
+      global.prompt.mockReturnValue('Updated text');
+      
+      fetch.mockResolvedValueOnce({
+        ok: false
+      });
+
+      const response = await fetch('/api/todos/1', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: 'Updated text' }),
+      });
+
+      if (!response.ok) {
+        alert('Failed to edit todo');
+      }
+
+      expect(alert).toHaveBeenCalledWith('Failed to edit todo');
+    });
+
+    test('should not edit when user cancels prompt', () => {
+      global.prompt.mockReturnValue(null);
+      
+      const newText = global.prompt('Edit todo:', 'Original text');
+      
+      if (newText === null) {
+        // User cancelled, don't make API call
+      }
+
+      expect(newText).toBeNull();
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    test('should not edit with empty text', () => {
+      global.prompt.mockReturnValue('');
+      
+      const newText = global.prompt('Edit todo:', 'Original text');
+      
+      if (!newText.trim()) {
+        alert('Todo text cannot be empty');
+      }
+
+      expect(alert).toHaveBeenCalledWith('Todo text cannot be empty');
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    test('should not edit with whitespace-only text', () => {
+      global.prompt.mockReturnValue('   ');
+      
+      const newText = global.prompt('Edit todo:', 'Original text');
+      
+      if (!newText.trim()) {
+        alert('Todo text cannot be empty');
+      }
+
+      expect(alert).toHaveBeenCalledWith('Todo text cannot be empty');
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    test('should handle network error during edit', async () => {
+      global.prompt.mockReturnValue('Updated text');
+      
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await fetch('/api/todos/1', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: 'Updated text' }),
+        });
+      } catch (error) {
+        expect(error.message).toBe('Network error');
+      }
+    });
+  });
+
+  describe('completeAll function', () => {
+    test('should complete all todos successfully', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'All todos completed', count: 3 })
+      });
+
+      const response = await fetch('/api/todos/complete-all', {
+        method: 'POST',
+      });
+
+      expect(response.ok).toBe(true);
+      const result = await response.json();
+      expect(result.message).toBe('All todos completed');
+      expect(result.count).toBe(3);
+    });
+
+    test('should handle complete all error', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false
+      });
+
+      const response = await fetch('/api/todos/complete-all', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        alert('Failed to complete all todos');
+      }
+
+      expect(alert).toHaveBeenCalledWith('Failed to complete all todos');
+    });
+
+    test('should alert when no todos to complete', () => {
+      const todos = [];
+      
+      if (todos.length === 0) {
+        alert('No todos to complete');
+      }
+
+      expect(alert).toHaveBeenCalledWith('No todos to complete');
+    });
+
+    test('should handle network error during complete all', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await fetch('/api/todos/complete-all', {
+          method: 'POST',
+        });
+      } catch (error) {
+        expect(error.message).toBe('Network error');
+      }
+    });
+  });
+
+  describe('uncompleteAll function', () => {
+    test('should uncomplete all todos successfully', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ message: 'All todos uncompleted', count: 3 })
+      });
+
+      const response = await fetch('/api/todos/uncomplete-all', {
+        method: 'POST',
+      });
+
+      expect(response.ok).toBe(true);
+      const result = await response.json();
+      expect(result.message).toBe('All todos uncompleted');
+      expect(result.count).toBe(3);
+    });
+
+    test('should handle uncomplete all error', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false
+      });
+
+      const response = await fetch('/api/todos/uncomplete-all', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        alert('Failed to uncomplete all todos');
+      }
+
+      expect(alert).toHaveBeenCalledWith('Failed to uncomplete all todos');
+    });
+
+    test('should alert when no todos to uncomplete', () => {
+      const todos = [];
+      
+      if (todos.length === 0) {
+        alert('No todos to uncomplete');
+      }
+
+      expect(alert).toHaveBeenCalledWith('No todos to uncomplete');
+    });
+
+    test('should handle network error during uncomplete all', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      try {
+        await fetch('/api/todos/uncomplete-all', {
+          method: 'POST',
+        });
+      } catch (error) {
+        expect(error.message).toBe('Network error');
+      }
     });
   });
 

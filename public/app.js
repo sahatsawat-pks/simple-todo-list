@@ -7,6 +7,8 @@ const addBtn = document.getElementById('addBtn');
 const todoList = document.getElementById('todoList');
 const totalCount = document.getElementById('totalCount');
 const completedCount = document.getElementById('completedCount');
+const completeAllBtn = document.getElementById('completeAllBtn');
+const uncompleteAllBtn = document.getElementById('uncompleteAllBtn');
 
 // State
 let todos = [];
@@ -97,6 +99,48 @@ async function deleteTodo(id) {
     }
 }
 
+// Edit a todo
+async function editTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    
+    const newText = prompt('Edit todo:', todo.text);
+    
+    if (newText === null) {
+        // User cancelled
+        return;
+    }
+    
+    if (!newText.trim()) {
+        alert('Todo text cannot be empty');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/${id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: newText }),
+        });
+        
+        if (response.ok) {
+            const updatedTodo = await response.json();
+            const index = todos.findIndex(t => t.id === id);
+            if (index !== -1) {
+                todos[index] = updatedTodo;
+                renderTodos();
+            }
+        } else {
+            alert('Failed to edit todo');
+        }
+    } catch (error) {
+        console.error('Error editing todo:', error);
+        alert('Failed to edit todo');
+    }
+}
+
 // Render todos to the DOM
 function renderTodos() {
     if (todos.length === 0) {
@@ -111,7 +155,10 @@ function renderTodos() {
                     onchange="toggleTodo(${todo.id})"
                 />
                 <span class="todo-text">${escapeHtml(todo.text)}</span>
-                <button class="delete-btn" onclick="deleteTodo(${todo.id})">Delete</button>
+                <div class="todo-actions">
+                    <button class="edit-btn" onclick="editTodo(${todo.id})">Edit</button>
+                    <button class="delete-btn" onclick="deleteTodo(${todo.id})">Delete</button>
+                </div>
             </div>
         `).join('');
     }
@@ -123,8 +170,8 @@ function renderTodos() {
 function updateStats() {
     const total = todos.length;
     const completed = todos.filter(t => t.completed).length;
-    totalCount.textContent = `Total: ${total}`;
-    completedCount.textContent = `Completed: ${completed}`;
+    totalCount.textContent = total;
+    completedCount.textContent = completed;
 }
 
 // Escape HTML to prevent XSS
@@ -134,6 +181,52 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Complete all todos
+async function completeAll() {
+    if (todos.length === 0) {
+        alert('No todos to complete');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/complete-all`, {
+            method: 'POST',
+        });
+        
+        if (response.ok) {
+            await fetchTodos();
+        } else {
+            alert('Failed to complete all todos');
+        }
+    } catch (error) {
+        console.error('Error completing all todos:', error);
+        alert('Failed to complete all todos');
+    }
+}
+
+// Uncomplete all todos
+async function uncompleteAll() {
+    if (todos.length === 0) {
+        alert('No todos to uncomplete');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/uncomplete-all`, {
+            method: 'POST',
+        });
+        
+        if (response.ok) {
+            await fetchTodos();
+        } else {
+            alert('Failed to uncomplete all todos');
+        }
+    } catch (error) {
+        console.error('Error uncompleting all todos:', error);
+        alert('Failed to uncomplete all todos');
+    }
+}
+
 // Event listeners
 addBtn.addEventListener('click', addTodo);
 todoInput.addEventListener('keypress', (e) => {
@@ -141,6 +234,8 @@ todoInput.addEventListener('keypress', (e) => {
         addTodo();
     }
 });
+completeAllBtn.addEventListener('click', completeAll);
+uncompleteAllBtn.addEventListener('click', uncompleteAll);
 
 // Initialize
 fetchTodos();

@@ -7,7 +7,7 @@ const app = require('../index');
 const TEST_TODOS_FILE = path.join(__dirname, '../todos.test.json');
 
 describe('Todo API Endpoints', () => {
-  beforeEach(() => {
+  beforeEach((done) => {
     // Reset the todos file before each test
     if (fs.existsSync(TEST_TODOS_FILE)) {
       fs.unlinkSync(TEST_TODOS_FILE);
@@ -17,6 +17,8 @@ describe('Todo API Endpoints', () => {
     if (fs.existsSync(defaultTodosFile)) {
       fs.writeFileSync(defaultTodosFile, JSON.stringify([]));
     }
+    // Small delay to ensure file operations complete
+    setTimeout(done, 20);
   });
 
   afterAll(() => {
@@ -153,6 +155,246 @@ describe('Todo API Endpoints', () => {
       
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty('error', 'Todo not found');
+    });
+  });
+
+  describe('PATCH /api/todos/:id', () => {
+    test('should edit todo text', async () => {
+      // Create a todo first
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Edit the todo
+      const response = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: 'Updated text' });
+      
+      expect(response.status).toBe(200);
+      expect(response.body.text).toBe('Updated text');
+      expect(response.body.id).toBe(todoId);
+      expect(response.body).toHaveProperty('updatedAt');
+    });
+
+    test('should trim whitespace from edited text', async () => {
+      // Create a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Edit with whitespace
+      const response = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: '  Updated text  ' });
+      
+      expect(response.status).toBe(200);
+      expect(response.body.text).toBe('Updated text');
+    });
+
+    test('should return 400 if text is missing', async () => {
+      // Create a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Try to edit without text
+      const response = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({});
+      
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Todo text is required');
+    });
+
+    test('should return 400 if text is empty', async () => {
+      // Create a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Try to edit with empty text
+      const response = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: '' });
+      
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Todo text is required');
+    });
+
+    test('should return 400 if text is only whitespace', async () => {
+      // Create a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Try to edit with whitespace only
+      const response = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: '   ' });
+      
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Todo text is required');
+    });
+
+    test('should return 404 if todo not found', async () => {
+      const response = await request(app)
+        .patch('/api/todos/999999')
+        .send({ text: 'Updated text' });
+      
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Todo not found');
+    });
+
+    test('should preserve completion status when editing', async () => {
+      // Create and complete a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Toggle to complete
+      await request(app).put(`/api/todos/${todoId}`);
+      
+      // Edit the todo text
+      const editResponse = await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: 'Updated text' });
+      
+      expect(editResponse.status).toBe(200);
+      expect(editResponse.body.text).toBe('Updated text');
+      expect(editResponse.body.completed).toBe(true);
+    });
+
+    test('should verify edited todo persists', async () => {
+      // Create a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Original text' });
+      
+      const todoId = createResponse.body.id;
+      
+      // Edit the todo
+      await request(app)
+        .patch(`/api/todos/${todoId}`)
+        .send({ text: 'Updated text' });
+      
+      // Verify it persisted
+      const getResponse = await request(app).get('/api/todos');
+      const editedTodo = getResponse.body.find(t => t.id === todoId);
+      
+      expect(editedTodo).toBeDefined();
+      expect(editedTodo.text).toBe('Updated text');
+    });
+  });
+
+  describe('POST /api/todos/complete-all', () => {
+    test('should complete all todos', async () => {
+      // Create multiple todos
+      await request(app).post('/api/todos').send({ text: 'Todo 1' });
+      await request(app).post('/api/todos').send({ text: 'Todo 2' });
+      await request(app).post('/api/todos').send({ text: 'Todo 3' });
+      
+      // Complete all
+      const response = await request(app).post('/api/todos/complete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'All todos completed');
+      expect(response.body.count).toBe(3);
+      
+      // Verify all are completed
+      const getResponse = await request(app).get('/api/todos');
+      expect(getResponse.body.every(t => t.completed === true)).toBe(true);
+    });
+
+    test('should handle complete all with no todos', async () => {
+      const response = await request(app).post('/api/todos/complete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'No todos to complete');
+      expect(response.body.count).toBe(0);
+    });
+
+    test('should complete already completed todos', async () => {
+      // Create and complete a todo
+      const createResponse = await request(app)
+        .post('/api/todos')
+        .send({ text: 'Already completed' });
+      
+      await request(app).put(`/api/todos/${createResponse.body.id}`);
+      
+      // Create another uncompleted todo
+      await request(app).post('/api/todos').send({ text: 'Not completed' });
+      
+      // Complete all
+      const response = await request(app).post('/api/todos/complete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body.count).toBe(2);
+      
+      // Verify all are completed
+      const getResponse = await request(app).get('/api/todos');
+      expect(getResponse.body.every(t => t.completed === true)).toBe(true);
+    });
+  });
+
+  describe('POST /api/todos/uncomplete-all', () => {
+    test('should uncomplete all todos', async () => {
+      // Create and complete multiple todos
+      const todo1 = await request(app).post('/api/todos').send({ text: 'Todo 1' });
+      const todo2 = await request(app).post('/api/todos').send({ text: 'Todo 2' });
+      const todo3 = await request(app).post('/api/todos').send({ text: 'Todo 3' });
+      
+      await request(app).put(`/api/todos/${todo1.body.id}`);
+      await request(app).put(`/api/todos/${todo2.body.id}`);
+      await request(app).put(`/api/todos/${todo3.body.id}`);
+      
+      // Uncomplete all
+      const response = await request(app).post('/api/todos/uncomplete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'All todos uncompleted');
+      expect(response.body.count).toBe(3);
+      
+      // Verify all are uncompleted
+      const getResponse = await request(app).get('/api/todos');
+      expect(getResponse.body.every(t => t.completed === false)).toBe(true);
+    });
+
+    test('should handle uncomplete all with no todos', async () => {
+      const response = await request(app).post('/api/todos/uncomplete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'No todos to uncomplete');
+      expect(response.body.count).toBe(0);
+    });
+
+    test('should uncomplete already uncompleted todos', async () => {
+      // Create uncompleted and completed todos
+      const todo1 = await request(app).post('/api/todos').send({ text: 'Uncompleted' });
+      const todo2 = await request(app).post('/api/todos').send({ text: 'Completed' });
+      
+      await request(app).put(`/api/todos/${todo2.body.id}`);
+      
+      // Uncomplete all
+      const response = await request(app).post('/api/todos/uncomplete-all');
+      
+      expect(response.status).toBe(200);
+      expect(response.body.count).toBe(2);
+      
+      // Verify all are uncompleted
+      const getResponse = await request(app).get('/api/todos');
+      expect(getResponse.body.every(t => t.completed === false)).toBe(true);
     });
   });
 
